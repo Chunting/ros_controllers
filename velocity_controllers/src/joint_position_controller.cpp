@@ -42,7 +42,7 @@
 
 #include <velocity_controllers/joint_position_controller.h>
 #include <angles/angles.h>
-#include <pluginlib/class_list_macros.h>
+#include <pluginlib/class_list_macros.hpp>
 
 namespace velocity_controllers {
 
@@ -59,7 +59,7 @@ bool JointPositionController::init(hardware_interface::VelocityJointInterface *r
 {
   // Get joint name from parameter server
   std::string joint_name;
-  if (!n.getParam("joint", joint_name)) 
+  if (!n.getParam("joint", joint_name))
   {
     ROS_ERROR("No joint given (namespace: %s)", n.getNamespace().c_str());
     return false;
@@ -81,7 +81,7 @@ bool JointPositionController::init(hardware_interface::VelocityJointInterface *r
 
   // Get URDF info about joint
   urdf::Model urdf;
-  if (!urdf.initParam("robot_description"))
+  if (!urdf.initParamWithNodeHandle("robot_description", n))
   {
     ROS_ERROR("Failed to parse urdf file");
     return false;

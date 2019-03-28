@@ -38,8 +38,10 @@
 
 #include <controller_interface/controller.h>
 #include <hardware_interface/joint_command_interface.h>
-#include <pluginlib/class_list_macros.h>
+#include <pluginlib/class_list_macros.hpp>
+#include <dynamic_reconfigure/server.h>
 
+#include <geometry_msgs/TwistStamped.h>
 #include <nav_msgs/Odometry.h>
 #include <tf/tfMessage.h>
 
@@ -48,6 +50,7 @@
 
 #include <diff_drive_controller/odometry.h>
 #include <diff_drive_controller/speed_limiter.h>
+#include <diff_drive_controller/DiffDriveControllerConfig.h>
 
 namespace diff_drive_controller{
 
@@ -57,7 +60,7 @@ namespace diff_drive_controller{
    *  - the wheels are identical in radius
    * Additional assumptions to not duplicate information readily available in the URDF:
    *  - the wheels have the same parent frame
-   *  - a wheel collision geometry is a cylinder in the urdf
+   *  - a wheel collision geometry is a cylinder or sphere in the urdf
    *  - a wheel joint frame center's vertical projection on the floor must lie within the contact patch
    */
   class DiffDriveController
@@ -120,6 +123,9 @@ namespace diff_drive_controller{
     Commands command_struct_;
     ros::Subscriber sub_command_;
 
+    /// Publish executed commands
+    boost::shared_ptr<realtime_tools::RealtimePublisher<geometry_msgs::TwistStamped> > cmd_vel_pub_;
+
     /// Odometry related:
     boost::shared_ptr<realtime_tools::RealtimePublisher<nav_msgs::Odometry> > odom_pub_;
     boost::shared_ptr<realtime_tools::RealtimePublisher<tf::tfMessage> > tf_odom_pub_;
@@ -133,13 +139,20 @@ namespace diff_drive_controller{
 
     /// Wheel separation and radius calibration multipliers:
     double wheel_separation_multiplier_;
-    double wheel_radius_multiplier_;
+    double left_wheel_radius_multiplier_;
+    double right_wheel_radius_multiplier_;
 
     /// Timeout to consider cmd_vel commands old:
     double cmd_vel_timeout_;
 
+    /// Whether to allow multiple publishers on cmd_vel topic or not:
+    bool allow_multiple_cmd_vel_publishers_;
+
     /// Frame to use for the robot base:
     std::string base_frame_id_;
+
+    /// Frame to use for odometry and odom tf:
+    std::string odom_frame_id_;
 
     /// Whether to publish odometry to tf or not:
     bool enable_odom_tf_;
@@ -152,6 +165,57 @@ namespace diff_drive_controller{
     Commands last0_cmd_;
     SpeedLimiter limiter_lin_;
     SpeedLimiter limiter_ang_;
+
+    /// Publish limited velocity:
+    bool publish_cmd_;
+
+    // A struct to hold dynamic parameters
+    // set from dynamic_reconfigure server
+    struct DynamicParams
+    {
+      bool update;
+
+      double left_wheel_radius_multiplier;
+      double right_wheel_radius_multiplier;
+      double wheel_separation_multiplier;
+
+      bool publish_cmd;
+
+      double publish_rate;
+      bool enable_odom_tf;
+
+      DynamicParams()
+        : left_wheel_radius_multiplier(1.0)
+        , right_wheel_radius_multiplier(1.0)
+        , wheel_separation_multiplier(1.0)
+        , publish_cmd(false)
+        , publish_rate(50)
+        , enable_odom_tf(true)
+      {}
+
+      friend std::ostream& operator<<(std::ostream& os, const DynamicParams& params)
+      {
+        os << "DynamicParams:\n"
+           //
+           << "\tOdometry parameters:\n"
+           << "\t\tleft wheel radius: "   << params.left_wheel_radius_multiplier  << "\n"
+           << "\t\tright wheel radius: "  << params.right_wheel_radius_multiplier << "\n"
+           << "\t\twheel separation: "    << params.wheel_separation_multiplier   << "\n"
+           //
+           << "\tPublication parameters:\n"
+           << "\t\tPublish executed velocity command: " << params.publish_cmd << "\n"
+           << "\t\tPublication rate: " << params.publish_rate                 << "\n"
+           << "\t\tPublish frame odom on tf: " << params.enable_odom_tf;
+
+        return os;
+      }
+    };
+
+    realtime_tools::RealtimeBuffer<DynamicParams> dynamic_params_;
+
+    /// Dynamic Reconfigure server
+    typedef dynamic_reconfigure::Server<DiffDriveControllerConfig> ReconfigureServer;
+        boost::shared_ptr<ReconfigureServer> dyn_reconf_server_;
 
   private:
     /**
@@ -196,6 +260,18 @@ namespace diff_drive_controller{
      */
     void setOdomPubFields(ros::NodeHandle& root_nh, ros::NodeHandle& controller_nh);
 
+    /**
+     * \brief Callback for dynamic_reconfigure server
+     * \param config The config set from dynamic_reconfigure server
+     * \param level not used at this time.
+     * \see dyn_reconf_server_
+     */
+    void reconfCallback(DiffDriveControllerConfig& config, uint32_t /*level*/);
+
+    /**
+     * \brief Update the dynamic parameters in the RT loop
+     */
+    void updateDynamicParams();
   };
 
   PLUGINLIB_EXPORT_CLASS(diff_drive_controller::DiffDriveController, controller_interface::ControllerBase);

@@ -41,7 +41,7 @@
 
 #include <effort_controllers/joint_position_controller.h>
 #include <angles/angles.h>
-#include <pluginlib/class_list_macros.h>
+#include <pluginlib/class_list_macros.hpp>
 
 namespace effort_controllers {
 
@@ -80,7 +80,7 @@ bool JointPositionController::init(hardware_interface::EffortJointInterface *rob
 
   // Get URDF info about joint
   urdf::Model urdf;
-  if (!urdf.initParam("robot_description"))
+  if (!urdf.initParamWithNodeHandle("robot_description", n))
   {
     ROS_ERROR("Failed to parse urdf file");
     return false;

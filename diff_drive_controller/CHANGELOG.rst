@@ -2,6 +2,68 @@
 Changelog for package diff_drive_controller
 ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 
+0.13.4 (2018-06-26)
+-------------------
+* isPublishngCmdVelOut to check getNumPublisheres until timeout
+* Contributors: Kei Okada
+
+0.13.3 (2018-04-27)
+-------------------
+* add dynamic_reconf to diff_drive_controller
+* migrate to new pluginlib headers
+* typo in odometry.h
+* fix doc
+* per wheel radius multiplier
+* fix xacro macro warning
+* [DiffDrive] Test fixing (`#318 <https://github.com/ros-controls/ros_controllers/issues/318>`_)
+* separate include_directories as SYSTEM to avoid unrelated compilation warnings
+* Contributors: Jeremie Deray, Mathias Lüdtke
+
+0.13.2 (2017-12-23)
+-------------------
+
+0.13.1 (2017-11-06)
+-------------------
+
+0.13.0 (2017-08-10)
+-------------------
+* Add test for allow_multiple_cmd_vel_publishers param
+* add check for multiple publishers on cmd_vel
+* Added tests for the odom_frame_id parameter.
+* Parameterized diff_drive_controller's odom_frame_id
+* Publish executed velocity if publish_cmd
+* refactor to remove code duplication
+* fixup pointer type for new convention
+* Allow diff_drive_controller to use spheres as well as cylinders for wheel collision geometry. Cylinders are not well behaved on Gazebo/ODE heightfields, using spheres works around the issue.
+* Contributors: Bence Magyar, Eric Tappan, Jeremie Deray, Karsten Knese, Tully Foote, mallanmba, tappan-at-git
+
+0.12.3 (2017-04-23)
+-------------------
+
+0.12.2 (2017-04-21)
+-------------------
+
+0.12.1 (2017-03-08)
+-------------------
+* Add exporting include dirs
+* Contributors: Bence Magyar
+
+0.12.0 (2017-02-15)
+-------------------
+* Fix most catkin lint issues
+* Change for format2
+* Add Enrique and Bence to maintainers
+* Add urdf compatibility header
+* Add --inorder to xacro calls
+* Add missing xacro tags
+* Use xacro instead of xacro.py
+* Disable angular jerk limit test
+* Replace boost::shared_ptr<urdf::XY> with urdf::XYConstSharedPtr when exists
+* Contributors: Bence Magyar
+
+0.11.2 (2016-08-16)
+-------------------
+
 0.11.1 (2016-05-23)
 -------------------
 

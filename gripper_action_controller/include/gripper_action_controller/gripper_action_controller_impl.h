@@ -41,9 +41,9 @@ std::string getLeafNamespace(const ros::NodeHandle& nh)
   return complete_ns.substr(id + 1);
 }  
 
-boost::shared_ptr<urdf::Model> getUrdf(const ros::NodeHandle& nh, const std::string& param_name)
+urdf::ModelSharedPtr getUrdf(const ros::NodeHandle& nh, const std::string& param_name)
 {
-  boost::shared_ptr<urdf::Model> urdf(new urdf::Model);
+  urdf::ModelSharedPtr urdf(new urdf::Model);
 
   std::string urdf_str;
   // Check for robot_description in proper namespace
@@ -53,25 +53,24 @@ boost::shared_ptr<urdf::Model> getUrdf(const ros::NodeHandle& nh, const std::str
     {
       ROS_ERROR_STREAM("Failed to parse URDF contained in '" << param_name << "' parameter (namespace: " <<
         nh.getNamespace() << ").");
-      return boost::shared_ptr<urdf::Model>();
+      return urdf::ModelSharedPtr();
     }
   }
   // Check for robot_description in root
   else if (!urdf->initParam("robot_description"))
   {
     ROS_ERROR_STREAM("Failed to parse URDF contained in '" << param_name << "' parameter");
-    return boost::shared_ptr<urdf::Model>();
+    return urdf::ModelSharedPtr();
   }
   return urdf;
 }
 
-typedef boost::shared_ptr<const urdf::Joint> UrdfJointConstPtr;
-std::vector<UrdfJointConstPtr> getUrdfJoints(const urdf::Model& urdf, const std::vector<std::string>& joint_names)
+std::vector<urdf::JointConstSharedPtr> getUrdfJoints(const urdf::Model& urdf, const std::vector<std::string>& joint_names)
 {
-  std::vector<UrdfJointConstPtr> out;
+  std::vector<urdf::JointConstSharedPtr> out;
   for (unsigned int i = 0; i < joint_names.size(); ++i)
   {
-    UrdfJointConstPtr urdf_joint = urdf.getJoint(joint_names[i]);
+    urdf::JointConstSharedPtr urdf_joint = urdf.getJoint(joint_names[i]);
     if (urdf_joint)
     {
       out.push_back(urdf_joint);
@@ -79,7 +78,7 @@ std::vector<UrdfJointConstPtr> getUrdfJoints(const urdf::Model& urdf, const std:
     else
     {
       ROS_ERROR_STREAM("Could not find joint '" << joint_names[i] << "' in URDF model.");
-      return std::vector<UrdfJointConstPtr>();
+      return std::vector<urdf::JointConstSharedPtr>();
     }
   }
   return out;
@@ -157,7 +156,7 @@ bool GripperActionController<HardwareInterface>::init(HardwareInterface* hw,
   }
   
   // URDF joints
-  boost::shared_ptr<urdf::Model> urdf = getUrdf(root_nh, "robot_description");
+  urdf::ModelSharedPtr urdf = getUrdf(root_nh, "robot_description");
   if (!urdf) 
   {
     return false;
@@ -165,7 +164,7 @@ bool GripperActionController<HardwareInterface>::init(HardwareInterface* hw,
   
   std::vector<std::string> joint_names;
   joint_names.push_back(joint_name_);
-  std::vector<UrdfJointConstPtr> urdf_joints = getUrdfJoints(*urdf, joint_names);
+  std::vector<urdf::JointConstSharedPtr> urdf_joints = getUrdfJoints(*urdf, joint_names);
   if (urdf_joints.empty()) 
   {
     return false;
@@ -315,10 +314,12 @@ template <class HardwareInterface>
 void GripperActionController<HardwareInterface>::
 checkForSuccess(const ros::Time& time, double error_position, double current_position, double current_velocity)
 {
-  if(!rt_active_goal_)
+  RealtimeGoalHandlePtr current_active_goal(rt_active_goal_);
+
+  if(!current_active_goal)
     return;
 
-  if(rt_active_goal_->gh_.getGoalStatus().status != actionlib_msgs::GoalStatus::ACTIVE)
+  if(current_active_goal->gh_.getGoalStatus().status != actionlib_msgs::GoalStatus::ACTIVE)
     return;
 
   if(fabs(error_position) < goal_tolerance_)
@@ -327,7 +328,7 @@ checkForSuccess(const ros::Time& time, double error_position, double current_pos
     pre_alloc_result_->position = current_position;
     pre_alloc_result_->reached_goal = true;
     pre_alloc_result_->stalled = false;
-    rt_active_goal_->setSucceeded(pre_alloc_result_);
+    current_active_goal->setSucceeded(pre_alloc_result_);
   }
   else
   {
@@ -341,7 +342,7 @@ checkForSuccess(const ros::Time& time, double error_position, double current_pos
       pre_alloc_result_->position = current_position;
       pre_alloc_result_->reached_goal = false;
       pre_alloc_result_->stalled = true;
-      rt_active_goal_->setAborted(pre_alloc_result_);
+      current_active_goal->setAborted(pre_alloc_result_);
     }
   }
 }

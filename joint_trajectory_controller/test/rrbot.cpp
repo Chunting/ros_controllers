@@ -30,6 +30,7 @@
 // ROS
 #include <ros/ros.h>
 #include <std_msgs/Float64.h>
+#include <std_msgs/Bool.h>
 
 // ros_control
 #include <controller_manager/controller_manager.h>
@@ -47,7 +48,10 @@ public:
     pos_[0] = 0.0; pos_[1] = 0.0;
     vel_[0] = 0.0; vel_[1] = 0.0;
     eff_[0] = 0.0; eff_[1] = 0.0;
-    cmd_[0] = 0.0; cmd_[1] = 0.0;
+    pos_cmd_[0] = 0.0; pos_cmd_[1] = 0.0;
+    pos_lastcmd_[0] = 0.0; pos_lastcmd_[1] = 0.0;
+    vel_cmd_[0] = 0.0; vel_cmd_[1] = 0.0;
+    vel_lastcmd_[0] = 0.0; vel_lastcmd_[1] = 0.0;
 
     // Connect and register the joint state interface
     hardware_interface::JointStateHandle state_handle_1("joint1", &pos_[0], &vel_[0], &eff_[0]);
@@ -59,17 +63,34 @@ public:
     registerInterface(&jnt_state_interface_);
 
     // Connect and register the joint position interface
-    hardware_interface::JointHandle pos_handle_1(jnt_state_interface_.getHandle("joint1"), &cmd_[0]);
+    hardware_interface::JointHandle pos_handle_1(jnt_state_interface_.getHandle("joint1"), &pos_cmd_[0]);
     jnt_pos_interface_.registerHandle(pos_handle_1);
 
-    hardware_interface::JointHandle pos_handle_2(jnt_state_interface_.getHandle("joint2"), &cmd_[1]);
+    hardware_interface::JointHandle pos_handle_2(jnt_state_interface_.getHandle("joint2"), &pos_cmd_[1]);
     jnt_pos_interface_.registerHandle(pos_handle_2);
 
     registerInterface(&jnt_pos_interface_);
 
+    // Connect and register the joint velocity interface
+    hardware_interface::JointHandle vel_handle_1(jnt_state_interface_.getHandle("joint1"), &vel_cmd_[0]);
+    jnt_vel_interface_.registerHandle(vel_handle_1);
+
+    hardware_interface::JointHandle vel_handle_2(jnt_state_interface_.getHandle("joint2"), &vel_cmd_[1]);
+    jnt_vel_interface_.registerHandle(vel_handle_2);
+
+    registerInterface(&jnt_vel_interface_);
+
     // Smoothing subscriber
     smoothing_sub_ = ros::NodeHandle().subscribe("smoothing", 1, &RRbot::smoothingCB, this);
     smoothing_.initRT(0.0);
+
+    // Delay subscriber: delay==0 yields direct control, one cycle delay otherwise
+    delay_sub_ = ros::NodeHandle().subscribe("delay", 1, &RRbot::delayCB, this);
+    delay_.initRT(false);
+
+    // Upper bound subscriber: set positions greater than this value are clipped
+    upper_bound_sub_ = ros::NodeHandle().subscribe("upper_bound", 1, &RRbot::upper_boundCB, this);
+    upper_bound_.initRT(std::numeric_limits<double>::infinity());
   }
 
   ros::Time getTime() const {return ros::Time::now();}
@@ -80,27 +101,103 @@ public:
   void write()
   {
     const double smoothing = *(smoothing_.readFromRT());
+    const bool delay = *(delay_.readFromRT());
+    const double upper_bound = *(upper_bound_.readFromRT());
+
     for (unsigned int i = 0; i < 2; ++i)
     {
-      vel_[i] = (cmd_[i] - pos_[i]) / getPeriod().toSec();
+      // if delay is true, use position from previous cycle
+      if(delay != 0)
+      {
+        std::swap(pos_cmd_[i], pos_lastcmd_[i]);
+        std::swap(vel_cmd_[i], vel_lastcmd_[i]);
+      }
+      else
+      {
+        pos_lastcmd_[i] = pos_cmd_[i];
+        vel_lastcmd_[i] = vel_cmd_[i];
+      }
 
-      const double next_pos = smoothing * pos_[i] +  (1.0 - smoothing) * cmd_[i];
-      pos_[i] = next_pos;
+      if(active_interface_[i] == "hardware_interface::PositionJointInterface")
+      {
+        const double next_pos = smoothing * pos_[i] +  (1.0 - smoothing) * pos_cmd_[i];
+        vel_[i] = (next_pos - pos_[i]) / getPeriod().toSec();
+        pos_[i] = next_pos;
+      }
+      else if(active_interface_[i] == "hardware_interface::VelocityJointInterface")
+      {
+        vel_[i] = (1.0 - smoothing) * vel_cmd_[i];
+        pos_[i] = pos_[i] + vel_[i] * getPeriod().toSec();
+      }
+
+      // clip position at upper bound
+      if(pos_[i] > upper_bound)
+      {
+        pos_[i] = upper_bound;
+        vel_[i] = 0.0;
+      }
     }
+  }
+
+  typedef std::list<hardware_interface::ControllerInfo> ControllerList;
+
+  bool prepareSwitch(const ControllerList& start_list,
+                     const ControllerList& stop_list)
+  {
+    for(ControllerList::const_iterator it = start_list.begin(); it != start_list.end(); ++it)
+    {
+      for(std::vector<hardware_interface::InterfaceResources>::const_iterator iface_it = it->claimed_resources.begin(); iface_it != it->claimed_resources.end(); ++iface_it)
+      {
+        for(std::set<std::string>::const_iterator res_it = iface_it->resources.begin(); res_it != iface_it->resources.end(); ++res_it)
+        {
+          if(*res_it == "joint1")
+          {
+            next_active_interface_[0] = iface_it->hardware_interface;
+          }
+          else if(*res_it == "joint2")
+          {
+            next_active_interface_[1] = iface_it->hardware_interface;
+          }
+        }
+      }
+    }
+
+    return true;
+  }
+
+  void doSwitch(const ControllerList& start_list,
+                const ControllerList& stop_list)
+  {
+    active_interface_[0] = next_active_interface_[0];
+    active_interface_[1] = next_active_interface_[1];
   }
 
 private:
   hardware_interface::JointStateInterface    jnt_state_interface_;
   hardware_interface::PositionJointInterface jnt_pos_interface_;
-  double cmd_[2];
+  hardware_interface::VelocityJointInterface jnt_vel_interface_;
+  double pos_cmd_[2];
+  double vel_cmd_[2];
+  double pos_lastcmd_[2];
+  double vel_lastcmd_[2];
   double pos_[2];
   double vel_[2];
   double eff_[2];
 
+  std::string active_interface_[2];
+  std::string next_active_interface_[2];
+
   realtime_tools::RealtimeBuffer<double> smoothing_;
   void smoothingCB(const std_msgs::Float64& smoothing) {smoothing_.writeFromNonRT(smoothing.data);}
-
   ros::Subscriber smoothing_sub_;
+
+  realtime_tools::RealtimeBuffer<bool> delay_;
+  void delayCB(const std_msgs::Bool& delay) {delay_.writeFromNonRT(delay.data);}
+  ros::Subscriber delay_sub_;
+
+  realtime_tools::RealtimeBuffer<double> upper_bound_;
+  void upper_boundCB(const std_msgs::Float64& upper_bound) {upper_bound_.writeFromNonRT(upper_bound.data);}
+  ros::Subscriber upper_bound_sub_;
 };
 
 int main(int argc, char **argv)

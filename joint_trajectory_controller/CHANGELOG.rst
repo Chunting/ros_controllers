@@ -2,6 +2,79 @@
 Changelog for package joint_trajectory_controller
 ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 
+0.13.4 (2018-06-26)
+-------------------
+* joint_trajectory_controller improve test stability
+* Use a copy of rt_active_goal in update()
+* Changes to allow inheritance from JointTrajectoryController.
+* Contributors: Alexander Gutenkunst, Gennaro Raiola, Kei Okada, Ryosuke Tajima
+
+0.13.3 (2018-04-27)
+-------------------
+* migrate to new pluginlib headers
+* TrajectoryController: Use desired state to calculate hold trajectory (`#297 <https://github.com/ros-controls/ros_controllers/issues/297>`_)
+* Add velocity feedforward term to velocity HardwareInterfaceAdapter (`#227 <https://github.com/ros-controls/ros_controllers/issues/227>`_)
+* Contributors: Mathias Lüdtke, Miguel Prada, agutenkunst
+
+0.13.2 (2017-12-23)
+-------------------
+* Changend the implementation of joint_trajectory_controller to enable the forwarding of the acceleration values from the trajectory
+* Contributors: Bence Magyar, Mart Moerdijk
+
+0.13.1 (2017-11-06)
+-------------------
+* Linted pos_vel joint_trajectory_controllers
+* Added posvel joint_trajectory_controller
+  Added a simple posvel joint_trajectory_controller that forwards
+  the desired state at the current point in time of the trajectory
+  to the joint.
+* Add support for an joint interfaces are not inherited from JointHandle.
+  Add JointTrajectoryController specification for SplineJointInterface.
+* Contributors: Gennaro Raiola, Igorec, Zach Anderson
+
+0.13.0 (2017-08-10)
+-------------------
+* Make rqt_plot optional
+* Added tests for issue `#275 <https://github.com/ros-controls/ros_controllers/issues/275>`_
+* Address Issue  `#275 <https://github.com/ros-controls/ros_controllers/issues/275>`_ for kinetic
+* Address issue `#263 <https://github.com/ros-controls/ros_controllers/issues/263>`_, joint_trajectory_controller - wraparoundOffset
+* Added warning to indicate that the verbose flag is enabled
+* Set hold trajectory goal handle when empty trajectory received through action.
+  Previously, an empty trajectory received through the action interface would
+  set hold trajectory and accept the action goal, but the action would never be
+  terminated, leaving clients hanging.
+* Contributors: Bence Magyar, Miguel Prada, bponsler, gennaro
+
+0.12.3 (2017-04-23)
+-------------------
+
+0.12.2 (2017-04-21)
+-------------------
+* Remove rqt_plot test_depend & make plots optional
+* Contributors: Bence Magyar
+
+0.12.1 (2017-03-08)
+-------------------
+
+0.12.0 (2017-02-15)
+-------------------
+* Fix missing controller_manager include
+* Ordered dependencies & cleanup
+* Change for format2
+* Add Enrique and Bence to maintainers
+* Add test that sends trajectory entirely in past
+* Use xacro instead of xacro.py
+* urdf::Model typedefs had to be added to a different repo first
+* Updated copyright info
+* jtc: Enable sending trajectories with a partial set of joints
+* Replace boost::shared_ptr<urdf::XY> with urdf::XYConstSharedPtr when exists
+* Infrastructure for testing the velocity_controllers::JointTrajectoryController.
+* jtc: Enable sending trajectories with a partial set of joints
+* Contributors: Beatriz Leon, Bence Magyar, Miguel Prada
+
+0.11.2 (2016-08-16)
+-------------------
+
 0.11.1 (2016-05-23)
 -------------------
 * Write feedback for the RealtimeServerGoalHandle to publish on the non-realtime thread.
